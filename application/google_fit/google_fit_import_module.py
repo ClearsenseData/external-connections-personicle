@@ -1,10 +1,10 @@
 import time
 import traceback
-from flask import Response
+from flask import Response, jsonify
 
 from application.models.external_connections import ExternalConnections
 from application.models.base import db
-
+from task_queue import send_download_task_request
 import requests
 from datetime import datetime, timedelta
 import pprint
@@ -112,7 +112,7 @@ def google_fit_dataset_import(personicle_user_id, access_token, last_accessed_at
         
     return resp
 
-def initiate_google_fit_data_import(personicle_user_id, *args, **kwargs):
+def initiate_google_fit_data_import(personicle_user_id, personicle_token, *args, **kwargs):
     """
     Parameter:
     personicle_user_id
@@ -140,23 +140,34 @@ def initiate_google_fit_data_import(personicle_user_id, *args, **kwargs):
     google_fit_user_id = user_record.external_user_id
     last_accessed_at = user_record.last_accessed_at
 
-    session_status, num_sessions = google_fit_sessions_import(personicle_user_id, google_fit_user_id, user_record.access_token, last_accessed_at, google_fit_oauth_config)
-    
-    datasets_added = google_fit_dataset_import(personicle_user_id, user_record.access_token, last_accessed_at)
-
-    resp = datasets_added
-    if session_status:
-        resp['sessions_added'] = num_sessions
-
-    if num_sessions > 0:
-        user_record.last_accessed_at = datetime.utcnow()
+    # send message to task queue here
     try:
-        db.session.commit()
-        return resp
+        send_download_task_request(personicle_user_id, personicle_token, "google-fit", user_record.access_token, last_accessed_at)
     except Exception as e:
-        db.session.rollback()
-        LOG.error(traceback.format_exc())
-        raise e
+        LOG.error("Error while sending download request")
+        LOG.error(e)
+
+        return {"success": False, "message": "Error while sending data download request"}
+
+    return {"success": True, "message": "Successfully created download request for google-fit"}
+
+    # session_status, num_sessions = google_fit_sessions_import(personicle_user_id, google_fit_user_id, user_record.access_token, last_accessed_at, google_fit_oauth_config)
+    
+    # datasets_added = google_fit_dataset_import(personicle_user_id, user_record.access_token, last_accessed_at)
+
+    # resp = datasets_added
+    # if session_status:
+    #     resp['sessions_added'] = num_sessions
+
+    # if num_sessions > 0:
+    #     user_record.last_accessed_at = datetime.utcnow()
+    # try:
+    #     db.session.commit()
+    #     return resp
+    # except Exception as e:
+    #     db.session.rollback()
+    #     LOG.error(traceback.format_exc())
+    #     raise e
     # get access token from sqlite
     # call api end points for different data scopes included in the request
     # these include activities, sleep, different data streams such as heart rate , steps, weight etc.

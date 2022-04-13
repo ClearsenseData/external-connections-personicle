@@ -69,6 +69,7 @@ def send_records_to_producer(personicle_user_id, records, stream_name, limit = N
 
 
 # TESTING METHOD FOR BULK UPLOAD OF FITBIT DATA
+# DEPRECATED - CONFLUENT KAFKA LIBRARY REMOVED FROM REQUIREMENTS
 def send_records_from_file_to_producer(filename, stream_name, limit = None):
     count = 0
     record_formatter = RECORD_PROCESSING[stream_name]

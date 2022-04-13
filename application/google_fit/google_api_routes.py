@@ -46,6 +46,7 @@ google_API_routes = Blueprint("google_fit_routes", __name__)
 @google_API_routes.route("/google-fit/connection", methods=['GET', 'POST'])
 def google_fit_connection():
     user_id = request.args.get("user_id", None)
+    personicle_access_token = request.headers.get("Authorization")
     if user_id is None:
         LOG.error("Unauthorised access: Denied")
         return Response("User not logged in", 401)
@@ -54,17 +55,18 @@ def google_fit_connection():
         session.pop(k)
 
     session['user_id'] = user_id
+    session['personicle_token'] = personicle_access_token
     LOG.info("Google fit authorization for user: {}".format(session['user_id']))
     if verify_user_connection(personicle_user_id=session['user_id'], connection_name='google-fit'):
         LOG.info("User {} has active access token for google fit".format(session['user_id']))
         try:
-            resp = initiate_google_fit_data_import(user_id)
+            resp = initiate_google_fit_data_import(user_id, personicle_access_token)
             success= True
         except Exception as e:
             LOG.error(traceback.format_exc(e))
             resp = {'error': str(e)}
             success = False
-        result = jsonify(success=success, resp=resp)
+        result = jsonify(resp)
         return result
     flow = google_auth_oauthlib.flow.Flow.from_client_secrets_file(
         os.path.join(PROJ_LOC, GOOGLE_FIT_CONFIG['SECRET_JSON']),
@@ -93,6 +95,7 @@ def google_fit_connection():
 @google_API_routes.route("/google-fit/oauth/access_token/", methods=['GET'])
 def get_access_token():
     user_id = session.get("user_id", None)
+    personicle_token = session.get("personicle_token", None)
     if user_id is None:
         return Response("User not logged in", 401)
     error_resp = request.args.get("error", None)
@@ -152,9 +155,9 @@ def get_access_token():
     # data_import_thread = threading.Thread(target=initiate_google_fit_data_import, args=(user_id,))
     # data_import_thread.start()
     try:
-        resp = initiate_google_fit_data_import(user_id)
-        result = jsonify(success=True, resp=resp)
+        resp = initiate_google_fit_data_import(user_id, personicle_token)
+        result = jsonify(resp)
         return result
     except Exception as e:
         LOG.error(traceback.format_exc())
-        return jsonify(success=False)
+        return jsonify(success=False, message="Error while initiating download request")

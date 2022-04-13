@@ -72,3 +72,4 @@ okta==0.0.4
 okta-jwt-verifier==0.2.0
 flask-cors==3.0.9
 numpy
+azure-storage-queue==2.1.0
